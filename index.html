@@ -26,7 +26,6 @@
 html,body{height:100%;overflow:hidden}
 body{display:flex;flex-direction:column;color:var(--tx);font:14px 'Share Tech Mono',ui-monospace,Consolas,monospace;background:var(--bg)}
 
-/* Imagen de fondo con 40% de transparencia */
 body::before{
   content:"";
   position:fixed;
@@ -39,15 +38,20 @@ body::before{
 
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9;background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px)}
 :focus-visible{outline:2px solid var(--c);outline-offset:2px}
-header{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:calc(8px + env(safe-area-inset-top)) 14px 8px;z-index:5;border-bottom:1px solid var(--bd);background:var(--pan)}
+header{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:calc(8px + env(safe-area-inset-top)) 14px 8px;z-index:5;border-bottom:1px solid var(--bd);background:var(--pan)}
 .logo{font:800 17px Orbitron,sans-serif;letter-spacing:.25em;color:var(--y);text-shadow:0 0 12px var(--yg)}
 nav{display:flex;gap:6px;margin:0 auto}
-.btn,nav button{background:var(--pan);border:1px solid var(--bd);color:var(--dim);padding:8px 14px;font:inherit;letter-spacing:.12em;cursor:pointer;transition:.2s}
+.btn,nav button{background:var(--pan);border:1px solid var(--bd);color:var(--dim);padding:6px 12px;font:inherit;letter-spacing:.12em;cursor:pointer;transition:.2s}
 .btn:hover,nav button:hover{color:var(--tx);border-color:var(--y)}
 nav button.on{color:#000;background:var(--y);border-color:var(--y);box-shadow:0 0 16px var(--yg);font-weight:700}
 .chip{font-size:11px;letter-spacing:.15em;padding:4px 10px;border:1px solid var(--bd);color:var(--dim)}
 .chip.ok{color:var(--ok);border-color:rgba(52,211,153,.3)}.chip.w{color:var(--y);border-color:var(--yg)}.chip.err{color:var(--er);border-color:rgba(248,113,113,.3)}
 #clk{color:var(--dim);font-size:12px}
+
+/* Input de configuración de servidor backend */
+.api-config{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dim)}
+.api-config input{background:var(--bg);border:1px solid var(--bd);color:var(--tx);font:inherit;padding:4px 8px;border-radius:3px;width:150px}
+
 main{flex:1;position:relative;min-height:0}
 .sec{position:absolute;inset:0;overflow:auto;display:none;padding:8px 10px calc(10px + env(safe-area-inset-bottom))}
 .sec.on{display:flex}
@@ -131,7 +135,6 @@ main{flex:1;position:relative;min-height:0}
 </head>
 <body class="m-t">
 
-<!-- HUD: anillos segmentados (con el anillo principal actualizado a amarillo neón) -->
 <svg id="hud" viewBox="-400 -400 800 800" fill="none" aria-hidden="true">
  <g class="s1"><circle r="384" stroke="#7b8494" stroke-width="2.5" stroke-dasharray="900 50 420 50 640 70 180 90"/></g>
  <g class="s2"><circle r="352" stroke="#262b33" stroke-width="9" stroke-dasharray="1.5 11"/></g>
@@ -146,7 +149,6 @@ main{flex:1;position:relative;min-height:0}
  <circle cy="-376" r="14" stroke="#ffd60a" stroke-width="2"/><circle cy="376" r="14" stroke="#ffd60a" stroke-width="2"/>
 </svg>
 
-<!-- Taza oscura con emblema Bat en el centro (Modo Voz) -->
 <div id="cupw"><svg id="cup" viewBox="0 0 200 200" aria-hidden="true">
  <defs>
   <linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#07080a"/><stop offset=".55" stop-color="#1b1f26"/><stop offset=".85" stop-color="#2b2a14"/><stop offset="1" stop-color="#07080a"/></linearGradient>
@@ -160,7 +162,12 @@ main{flex:1;position:relative;min-height:0}
 </svg></div>
 
 <header>
- <span class="logo">ALFRED</span><span id="stt" class="chip">STANDBY</span>
+ <span class="logo">ALFRED</span>
+ <span id="stt" class="chip">STANDBY</span>
+ <div class="api-config">
+   <label for="api-url-input">API:</label>
+   <input id="api-url-input" type="text" value="http://127.0.0.1:8000" title="URL del backend FastAPI de Alfred">
+ </div>
  <nav><button data-m="t" class="on">TEXTO</button><button data-m="v">VOZ</button><button data-m="s">ESTADÍSTICAS</button></nav>
  <button class="btn" id="bs" title="Atajo: activa compartir pantalla">⛶ PANTALLA</button><span id="clk"></span>
 </header>
@@ -205,16 +212,27 @@ main{flex:1;position:relative;min-height:0}
 
 <canvas id="fx" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:3"></canvas>
 
-<!-- Modal: pantalla en vivo -->
 <div id="scr" class="mod"><div class="mp">
  <div class="mh"><b>◉ PANTALLA EN VIVO</b><span id="ss">CONECTANDO…</span><button class="btn" id="sx">CERRAR ✕</button></div>
  <img id="si" alt="Pantalla de la laptop en tiempo real"></div></div>
 
 <script>
 const TOKEN='clave_secreta_ultraseguro_para_alfred_2026';
-const API=location.protocol==='file:'?'http://127.0.0.1:8000':location.origin;
-const $=i=>document.getElementById(i),sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}},sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+
+// Obtener o configurar la URL del backend dinámicamente con persistencia en localStorage
+const apiInput = $('api-url-input');
+const savedApi = localStorage.getItem('ALFRED_API_URL');
+if(savedApi) { apiInput.value = savedApi; }
+
+function getAPI() {
+  return apiInput.value.replace(/\/+$/, ''); // Eliminar barra diagonal final si la hubiera
+}
+
+apiInput.onchange = () => {
+  localStorage.setItem('ALFRED_API_URL', getAPI());
+};
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let mode='t',busy=false;
 
 setInterval(()=>$('clk').textContent=new Date().toLocaleString('es',{weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'}),1e3);
@@ -248,12 +266,14 @@ function reply(t,src){add('a',t);$('vsub').textContent=t;spores(80);speak(t)}
 async function handle(text,src){text=text.trim();if(!text||busy)return;add('u',text);
  if(norm(text).includes('activa compartir pantalla')){openScr();return reply('Activando la visualización de su pantalla, señor.',src)}
  busy=true;st('PROCESANDO…','w');$('vsub').textContent='Procesando…';const ty=add('a','',1);
- try{const r=await fetch(API+'/v1/command',{method:'POST',headers:{'Content-Type':'application/json','X-ALFRED-Token':TOKEN},body:JSON.stringify({prompt:text}),signal:AbortSignal.timeout(6e4)});
+ try{
+  const currentAPI = getAPI();
+  const r=await fetch(currentAPI+'/v1/command',{method:'POST',headers:{'Content-Type':'application/json','X-ALFRED-Token':TOKEN},body:JSON.stringify({prompt:text}),signal:AbortSignal.timeout(6e4)});
   if(!r.ok)throw new Error(r.status==401||r.status==403?'Token rechazado (HTTP '+r.status+')':'Error del servidor (HTTP '+r.status+')');
   const o=(r.headers.get('content-type')||'').includes('json')?await r.json():await r.text();
   const t=typeof o=='string'?o:(o.response??o.reply??o.message??o.text??o.result??o.output??JSON.stringify(o));
   ty.remove();st('EN LÍNEA','ok');reply(String(t),src)
- }catch(e){ty.remove();st('SIN ENLACE','err');const m=e.name=='TimeoutError'?'Tiempo de espera agotado':e.message=='Failed to fetch'?'Sin conexión con el backend ('+API+')':e.message;
+ }catch(e){ty.remove();st('SIN ENLACE','err');const m=e.name=='TimeoutError'?'Tiempo de espera agotado':e.message=='Failed to fetch'?'Sin conexión con el backend ('+getAPI()+')':e.message;
   add('e','⚠ '+m);$('vsub').textContent='⚠ '+m
  }finally{busy=false}}
 $('f').onsubmit=e=>{e.preventDefault();if(busy)return;const v=$('in').value;$('in').value='';handle(v,'t')};
@@ -280,7 +300,8 @@ function openScr(){$('scr').classList.add('on');ac&&ac.abort();ac=new AbortContr
 function closeScr(){$('scr').classList.remove('on');ac&&ac.abort()}
 async function pump(sig){
  while(!sig.aborted){try{
-  const r=await fetch(API+'/v1/screen/stream',{headers:{'X-ALFRED-Token':TOKEN},signal:sig});
+  const currentAPI = getAPI();
+  const r=await fetch(currentAPI+'/v1/screen/stream',{headers:{'X-ALFRED-Token':TOKEN},signal:sig});
   if(!r.ok)throw new Error('HTTP '+r.status);
   const ct=r.headers.get('content-type')||'';
   if(ct.includes('image/')){show(await r.blob());await sleep(150);continue}
